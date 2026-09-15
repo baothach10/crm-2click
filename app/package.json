@@ -18,11 +18,13 @@
   "dependencies": {
     "fastify": "5.12.4",
     "pg": "8.23.0",
+    "pg-copy-streams": "7.0.0",
     "eta": "4.6.0"
   },
   "devDependencies": {
     "@types/node": "22.20.2",
     "@types/pg": "8.23.1",
+    "@types/pg-copy-streams": "1.2.5",
     "typescript": "5.9.3"
   }
 }

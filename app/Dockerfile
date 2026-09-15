@@ -12,8 +12,10 @@ FROM deps AS build
 COPY tsconfig.json ./
 COPY src ./src
 RUN pnpm run build \
- && mkdir -p dist/migrations \
- && cp src/migrations/*.sql dist/migrations/
+ && mkdir -p dist/migrations dist/import/transform \
+ && cp src/migrations/*.sql dist/migrations/ \
+ && cp src/import/staging.sql dist/import/ \
+ && cp src/import/transform/*.sql dist/import/transform/
 
 FROM base AS runtime
 ENV NODE_ENV=production
