@@ -12,7 +12,11 @@ import {
   type Cursor,
   type FollowUpRow,
 } from "../db/queries/company.js";
+import { listSalesReps } from "../db/queries/salesRep.js";
+import { logActivity } from "../db/writes/activity.js";
+import { createFollowUp } from "../db/writes/followUp.js";
 import { formatDate, formatDateTime, formatMoney } from "../web/format.js";
+import { addFollowUpForm, followUpActionsForm, logActivityForm } from "../web/forms.js";
 import { html, join, raw, SafeHtml } from "../web/html.js";
 import { emptyState, page, statusBadge } from "../web/shell.js";
 
@@ -47,7 +51,9 @@ function activityRow(row: ActivityRow): SafeHtml {
   </tr>`;
 }
 
-function followUpRow(row: FollowUpRow): SafeHtml {
+// listOpenFollowUpsForCompany only ever returns rows with completed_at IS NULL, so every
+// row here is actionable -- no "Done" branch needed, unlike the opportunity page's list.
+function followUpRow(row: FollowUpRow, returnTo: string): SafeHtml {
   return html`<tr>
     <td>${formatDate(row.due_on)}</td>
     <td>${row.title}</td>
@@ -55,7 +61,13 @@ function followUpRow(row: FollowUpRow): SafeHtml {
     <td>${row.opportunity_code
       ? html`<a href="/opportunities/${row.opportunity_code}">${row.opportunity_code}</a>`
       : raw('<span class="muted">account-level</span>')}</td>
+    <td>${followUpActionsForm(row.id, returnTo)}</td>
   </tr>`;
+}
+
+function emptyToNull(value: string | undefined): string | null {
+  const trimmed = (value ?? "").trim();
+  return trimmed === "" ? null : trimmed;
 }
 
 export function registerCompanyRoutes(app: FastifyInstance): void {
@@ -73,12 +85,15 @@ export function registerCompanyRoutes(app: FastifyInstance): void {
           ? { at: req.query.activity_before_at, id: Number(req.query.activity_before_id) }
           : null;
 
-      const [contacts, opportunities, activity, followUps] = await Promise.all([
+      const [contacts, opportunities, activity, followUps, reps] = await Promise.all([
         listContactsForCompany(company.id),
         listOpportunitiesForCompany(company.id),
         listCompanyActivity(company.id, cursor),
         listOpenFollowUpsForCompany(company.id),
+        listSalesReps(),
       ]);
+
+      const returnTo = `/companies/${company.company_code}`;
 
       const opportunitiesByFair = new Map<string, CompanyOpportunityRow[]>();
       for (const opp of opportunities) {
@@ -127,10 +142,11 @@ export function registerCompanyRoutes(app: FastifyInstance): void {
           ? emptyState("Nothing outstanding for this account.")
           : html`<div class="panel table-scroll">
               <table>
-                <thead><tr><th>Due</th><th>Follow-up</th><th>Assigned to</th><th>Opportunity</th></tr></thead>
-                <tbody>${join(followUps.map(followUpRow))}</tbody>
+                <thead><tr><th>Due</th><th>Follow-up</th><th>Assigned to</th><th>Opportunity</th><th></th></tr></thead>
+                <tbody>${join(followUps.map((r) => followUpRow(r, returnTo)))}</tbody>
               </table>
             </div>`}
+        ${addFollowUpForm(`/companies/${company.company_code}/follow-ups`, reps)}
 
         <h2>Account activity</h2>
         <p class="muted">Everything logged against this exhibitor's account, across every fair and edition.</p>
@@ -143,9 +159,59 @@ export function registerCompanyRoutes(app: FastifyInstance): void {
               </table>
             </div>
             ${moreActivityLink}`}
+        ${logActivityForm(`/companies/${company.company_code}/activities`, reps)}
       `;
 
       reply.type("text/html").send(page(company.name, body));
+    },
+  );
+
+  app.post<{ Params: { code: string }; Body: Record<string, string> }>(
+    "/companies/:code/activities",
+    async (req, reply) => {
+      const company = await getCompanyByCode(req.params.code);
+      if (!company) {
+        reply.code(404).send("Exhibitor not found");
+        return;
+      }
+      const b = req.body;
+      if (!b.details?.trim() || !b.author_rep_id?.trim()) {
+        reply.code(400).send("Details and author are required");
+        return;
+      }
+      await logActivity({
+        companyId: company.id,
+        opportunityId: null,
+        type: b.type as "call" | "email" | "meeting" | "note" | "task",
+        details: b.details.trim(),
+        authorRepId: Number(b.author_rep_id),
+        followUpOn: emptyToNull(b.follow_up_on),
+      });
+      reply.redirect(`/companies/${req.params.code}`);
+    },
+  );
+
+  app.post<{ Params: { code: string }; Body: Record<string, string> }>(
+    "/companies/:code/follow-ups",
+    async (req, reply) => {
+      const company = await getCompanyByCode(req.params.code);
+      if (!company) {
+        reply.code(404).send("Exhibitor not found");
+        return;
+      }
+      const b = req.body;
+      if (!b.due_on?.trim() || !b.title?.trim() || !b.assigned_rep_id?.trim()) {
+        reply.code(400).send("Due date, title, and assignee are required");
+        return;
+      }
+      await createFollowUp({
+        companyId: company.id,
+        opportunityId: null,
+        dueOn: b.due_on.trim(),
+        title: b.title.trim(),
+        assignedRepId: Number(b.assigned_rep_id),
+      });
+      reply.redirect(`/companies/${req.params.code}`);
     },
   );
 }
