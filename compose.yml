@@ -14,5 +14,49 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  importer:
+    build:
+      context: ./app
+      target: runtime
+    image: exhibition-crm-app:local
+    environment:
+      DATABASE_URL: postgres://crm:local-development-only@db:5432/crm
+      DATA_DIR: /app/data
+    volumes:
+      - ./data:/app/data:ro
+    command: ["sh", "-c", "node dist/db/migrate.js && node dist/import/run.js"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: ./app
+      target: runtime
+    image: exhibition-crm-app:local
+    environment:
+      DATABASE_URL: postgres://crm:local-development-only@db:5432/crm
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    depends_on:
+      db:
+        condition: service_healthy
+      importer:
+        condition: service_completed_successfully
+
 volumes:
   postgres-data:
