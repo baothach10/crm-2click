@@ -18,6 +18,41 @@ Everything builds from source via a multi-stage `Dockerfile`; both `node` and `p
 support `linux/amd64` and `linux/arm64` (checked with `docker manifest inspect`), and nothing in
 `compose.yml` or the Dockerfile pins an architecture.
 
+## Architecture choices
+
+**No ORM.** All data access is hand-written, parameterized SQL via `pg`
+([app/src/db/queries](app/src/db/queries), [app/src/db/writes](app/src/db/writes)). The import is
+bulk `COPY` + set-based SQL transforms, and the scale story is entirely about indexes and query
+shape — an ORM would sit between me and both of those without buying anything back for an app
+this size. It also keeps every query legible to a reviewer as plain SQL, not a generated one.
+
+**No frontend JavaScript framework, for now.** Every screen is server-rendered HTML, built with a
+~40-line dependency-free auto-escaping `html\`\`` tag ([app/src/web/html.ts](app/src/web/html.ts))
+rather than a template engine, and returned directly from the Fastify route that queried it — no
+API layer, no client-side state, no build step for the frontend. For a six-person internal tool
+with no complex client-side interaction, a React/Vue SPA would mean a second codebase and a
+JSON contract to maintain for no real benefit; it's a reasonable place to add one later if the
+UI grows real client-side interactivity, not a limitation of the approach taken now.
+
+**Security, concretely:**
+- **XSS**: the `html\`\`` tag auto-escapes every interpolated value by default; raw markup can
+  only be inserted via an explicit `raw()` call, and every use of `raw()` in the codebase wraps a
+  static string literal, never request or database data (checked by grep, not just by design).
+- **SQL injection**: every query is parameterized (`$1`, `$2`, ...) — no string-built SQL from
+  request input anywhere in the app.
+- **Open redirect**: the follow-ups screen's "return to where I came from" field is
+  attacker-controllable request data even though this app's own forms only ever fill it with a
+  same-origin path; `safeRedirectPath()` ([app/src/routes/followUps.ts](app/src/routes/followUps.ts))
+  rejects anything that isn't a genuine relative path before it reaches `reply.redirect()`.
+- **Tampered foreign keys**: editing an opportunity's primary contact validates server-side that
+  the submitted `contact_id` actually belongs to that opportunity's own company
+  ([app/src/db/writes/opportunity.ts](app/src/db/writes/opportunity.ts)) — the option list is only
+  ever rendered from the right company, but the check doesn't trust that a request will match it.
+- **No secrets beyond the starter's own local-development-only Postgres password**; no `.env`
+  file, nothing committed that shouldn't be.
+- **Container hardening**: the runtime image runs as a non-root user (`appuser`, uid 10001), and
+  the handoff assistant makes no outbound network calls, needs no API key, and downloads nothing.
+
 ## Time spent
 
 Roughly 6 hours of active work, from the commit history (excludes the overnight gap between
