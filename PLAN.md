@@ -280,8 +280,12 @@ the brief".
 
 **README demo script:**
 - complete → `OP000001` → `ready_for_technical`
-- incomplete → `OP000003` → `blocked_missing_info` (area + height absent) + proposed follow-up
-- bonus, conflicting → `OP000005` → `blocked_conflict` (6,00 m vs 5,00 m)
+- incomplete → `OP000003` → `early_notice_only` (budget known; area + height absent) + proposed follow-up.
+  (Corrected from an earlier draft of this plan, which called this `blocked_missing_info` --
+  that decision needs budget itself to be missing, which OP000003 has.)
+- bonus, conflicting → `OP000005` → `blocked_conflict` (6,00 m vs 5,00 m), reached via one
+  revision: the preparer's shallow pass proposes `ready_for_technical` since every field is
+  present, the checker's height-vs-limit check catches the conflict and forces the revision
 - then: edit `OP000003`, fill in area and height, re-run → `ready_for_technical`, both runs visible
 
 ---

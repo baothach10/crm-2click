@@ -34,6 +34,26 @@ export function statusBadge(status: string): SafeHtml {
   return html`<span class="badge badge-${status}">${status}</span>`;
 }
 
+const DECISION_LABELS: Record<string, string> = {
+  ready_for_technical: "Ready for technical",
+  early_notice_only: "Early notice only",
+  blocked_missing_info: "Blocked — missing info",
+  blocked_conflict: "Blocked — conflict",
+};
+
+const DECISION_CLASSES: Record<string, string> = {
+  ready_for_technical: "badge-ok",
+  early_notice_only: "badge-warn",
+  blocked_missing_info: "badge-neutral",
+  blocked_conflict: "badge-danger",
+};
+
+export function decisionBadge(decision: string): SafeHtml {
+  const cls = DECISION_CLASSES[decision] ?? "badge-neutral";
+  const label = DECISION_LABELS[decision] ?? decision;
+  return html`<span class="badge ${cls}">${label}</span>`;
+}
+
 export function emptyState(message: string): SafeHtml {
   return html`<p class="empty-state">${message}</p>`;
 }
