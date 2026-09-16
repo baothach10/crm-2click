@@ -1,0 +1,183 @@
+[scale-check] creating scale_check schema...
+[scale-check] recreating the domain schema inside scale_check...
+[scale-check] copying reference data (sales_rep, fair, fair_edition)...
+[scale-check] cloning generation 1/5...
+[scale-check] cloning generation 2/5...
+[scale-check] cloning generation 3/5...
+[scale-check] cloning generation 4/5...
+[scale-check] cloning generation 5/5...
+[scale-check] analyzing...
+[scale-check] row counts after cloning:
+  company      50000
+  follow_up    63025
+  contact      100000
+  opportunity  75000
+  activity     200000
+
+=== Company page: opportunities grouped by fair ===
+Limit  (cost=19.50..19.51 rows=2 width=125) (actual time=0.232..0.234 rows=3 loops=1)
+  Buffers: shared hit=8 read=5 written=5
+  InitPlan 1
+    ->  Index Scan using company_company_code_key on company  (cost=0.29..8.31 rows=1 width=8) (actual time=0.052..0.052 rows=1 loops=1)
+          Index Cond: (company_code = 'CO000001-G1'::text)
+          Buffers: shared hit=1 read=2 written=2
+  ->  Sort  (cost=11.19..11.20 rows=2 width=125) (actual time=0.231..0.233 rows=3 loops=1)
+        Sort Key: f.name, fe.starts_on DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=8 read=5 written=5
+        ->  Nested Loop  (cost=1.65..11.18 rows=2 width=125) (actual time=0.199..0.208 rows=3 loops=1)
+              Join Filter: (fe.fair_id = f.id)
+              Rows Removed by Join Filter: 9
+              Buffers: shared hit=8 read=5 written=5
+              ->  Seq Scan on fair f  (cost=0.00..1.04 rows=4 width=29) (actual time=0.004..0.005 rows=4 loops=1)
+                    Buffers: shared hit=1
+              ->  Materialize  (cost=1.65..10.02 rows=2 width=84) (actual time=0.026..0.027 rows=3 loops=4)
+                    Buffers: shared hit=5 read=3 written=3
+                    ->  Hash Join  (cost=1.65..10.01 rows=2 width=84) (actual time=0.100..0.104 rows=3 loops=1)
+                          Hash Cond: (o.fair_edition_id = fe.id)
+                          Buffers: shared hit=5 read=3 written=3
+                          ->  Index Scan using opportunity_company_id_idx on opportunity o  (cost=0.29..8.64 rows=2 width=69) (actual time=0.086..0.088 rows=3 loops=1)
+                                Index Cond: (company_id = (InitPlan 1).col1)
+                                Buffers: shared hit=4 read=3 written=3
+                          ->  Hash  (cost=1.16..1.16 rows=16 width=31) (actual time=0.009..0.009 rows=16 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                Buffers: shared hit=1
+                                ->  Seq Scan on fair_edition fe  (cost=0.00..1.16 rows=16 width=31) (actual time=0.002..0.004 rows=16 loops=1)
+                                      Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=97 read=9 written=3
+Planning Time: 0.514 ms
+Execution Time: 0.266 ms
+
+=== Company page: account activity timeline (first page) ===
+Limit  (cost=61.04..61.06 rows=5 width=125) (actual time=0.123..0.125 rows=8 loops=1)
+  Buffers: shared hit=43 read=2 written=2
+  InitPlan 1
+    ->  Index Scan using company_company_code_key on company  (cost=0.29..8.31 rows=1 width=8) (actual time=0.006..0.006 rows=1 loops=1)
+          Index Cond: (company_code = 'CO000001-G1'::text)
+          Buffers: shared hit=3
+  ->  Sort  (cost=52.74..52.75 rows=5 width=125) (actual time=0.123..0.124 rows=8 loops=1)
+        Sort Key: a.occurred_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 26kB
+        Buffers: shared hit=43 read=2 written=2
+        ->  Nested Loop Left Join  (cost=0.59..52.68 rows=5 width=125) (actual time=0.050..0.119 rows=8 loops=1)
+              Buffers: shared hit=43 read=2 written=2
+              ->  Nested Loop  (cost=0.29..11.10 rows=5 width=93) (actual time=0.037..0.050 rows=8 loops=1)
+                    Join Filter: (a.author_rep_id = sr.id)
+                    Rows Removed by Join Filter: 13
+                    Buffers: shared hit=12 read=1 written=1
+                    ->  Index Scan using activity_company_id_idx on activity a  (cost=0.29..9.64 rows=5 width=89) (actual time=0.031..0.038 rows=8 loops=1)
+                          Index Cond: (company_id = (InitPlan 1).col1)
+                          Buffers: shared hit=11 read=1 written=1
+                    ->  Materialize  (cost=0.00..1.09 rows=6 width=20) (actual time=0.001..0.001 rows=3 loops=8)
+                          Buffers: shared hit=1
+                          ->  Seq Scan on sales_rep sr  (cost=0.00..1.06 rows=6 width=20) (actual time=0.002..0.003 rows=6 loops=1)
+                                Buffers: shared hit=1
+              ->  Index Scan using opportunity_pkey on opportunity o  (cost=0.29..8.31 rows=1 width=20) (actual time=0.004..0.004 rows=1 loops=8)
+                    Index Cond: (id = a.opportunity_id)
+                    Buffers: shared hit=23 read=1 written=1
+Planning:
+  Buffers: shared hit=68 read=8 written=8
+Planning Time: 0.518 ms
+Execution Time: 0.161 ms
+
+=== Opportunity page: this-edition-only conversation timeline (first page) ===
+Limit  (cost=27.07..27.08 rows=3 width=125) (actual time=0.095..0.097 rows=11 loops=1)
+  Buffers: shared hit=22 read=2 written=2
+  InitPlan 1
+    ->  Index Scan using opportunity_opportunity_code_key on opportunity  (cost=0.42..8.44 rows=1 width=8) (actual time=0.009..0.009 rows=1 loops=1)
+          Index Cond: (opportunity_code = 'OP007086-G1'::text)
+          Buffers: shared hit=4
+  ->  Sort  (cost=18.64..18.64 rows=3 width=125) (actual time=0.095..0.096 rows=11 loops=1)
+        Sort Key: a.occurred_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 26kB
+        Buffers: shared hit=22 read=2 written=2
+        ->  Nested Loop Left Join  (cost=1.85..18.61 rows=3 width=125) (actual time=0.065..0.092 rows=11 loops=1)
+              Buffers: shared hit=22 read=2 written=2
+              ->  Hash Join  (cost=1.55..10.25 rows=3 width=93) (actual time=0.040..0.052 rows=11 loops=1)
+                    Hash Cond: (a.author_rep_id = sr.id)
+                    Buffers: shared hit=18 read=1 written=1
+                    ->  Index Scan using activity_opportunity_id_idx on activity a  (cost=0.42..9.10 rows=3 width=89) (actual time=0.031..0.041 rows=11 loops=1)
+                          Index Cond: (opportunity_id = (InitPlan 1).col1)
+                          Buffers: shared hit=17 read=1 written=1
+                    ->  Hash  (cost=1.06..1.06 rows=6 width=20) (actual time=0.005..0.005 rows=6 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                          Buffers: shared hit=1
+                          ->  Seq Scan on sales_rep sr  (cost=0.00..1.06 rows=6 width=20) (actual time=0.002..0.002 rows=6 loops=1)
+                                Buffers: shared hit=1
+              ->  Materialize  (cost=0.29..8.32 rows=1 width=20) (actual time=0.002..0.002 rows=1 loops=11)
+                    Buffers: shared hit=2 read=1 written=1
+                    ->  Index Scan using opportunity_pkey on opportunity o  (cost=0.29..8.31 rows=1 width=20) (actual time=0.023..0.023 rows=1 loops=1)
+                          Index Cond: (id = (InitPlan 1).col1)
+                          Buffers: shared hit=2 read=1 written=1
+Planning:
+  Buffers: shared hit=4
+Planning Time: 0.139 ms
+Execution Time: 0.123 ms
+
+=== Follow-ups screen: bucketed overdue/today/next7/later, no rep filter ===
+Sort  (cost=34932.19..35089.75 rows=63025 width=157) (actual time=137.652..137.662 rows=200 loops=1)
+  Sort Key: (CASE ranked.bucket WHEN 'overdue'::text THEN 0 WHEN 'today'::text THEN 1 WHEN 'next7'::text THEN 2 ELSE 3 END), ranked.due_on, ranked.id
+  Sort Method: quicksort  Memory: 55kB
+  Buffers: shared hit=4273 read=25 written=25, temp read=1067 written=1069
+  ->  Subquery Scan on ranked  (cost=20382.66..24951.95 rows=63025 width=157) (actual time=126.281..137.591 rows=200 loops=1)
+        Buffers: shared hit=4273 read=25 written=25, temp read=1067 written=1069
+        ->  WindowAgg  (cost=20382.66..23849.01 rows=63025 width=161) (actual time=126.279..137.566 rows=200 loops=1)
+              Run Condition: (row_number() OVER (?) <= 50)
+              Buffers: shared hit=4273 read=25 written=25, temp read=1067 written=1069
+              ->  Sort  (cost=20382.64..20540.20 rows=63025 width=153) (actual time=126.268..133.924 rows=63025 loops=1)
+                    Sort Key: (CASE WHEN (fu.due_on < ((now() AT TIME ZONE 'Europe/Rome'::text))::date) THEN 'overdue'::text WHEN (fu.due_on = ((now() AT TIME ZONE 'Europe/Rome'::text))::date) THEN 'today'::text WHEN (fu.due_on <= (((now() AT TIME ZONE 'Europe/Rome'::text))::date + 7)) THEN 'next7'::text ELSE 'later'::text END), fu.due_on, fu.id
+                    Sort Method: external merge  Disk: 8536kB
+                    Buffers: shared hit=4273 read=25 written=25, temp read=1067 written=1069
+                    ->  Hash Left Join  (cost=6053.64..10402.40 rows=63025 width=153) (actual time=29.005..86.119 rows=63025 loops=1)
+                          Hash Cond: (fu.opportunity_id = o.id)
+                          Buffers: shared hit=4273 read=25 written=25
+                          ->  Hash Join  (cost=1731.13..3866.13 rows=63025 width=117) (actual time=9.447..36.084 rows=63025 loops=1)
+                                Hash Cond: (fu.company_id = co.id)
+                                Buffers: shared hit=1662 read=1 written=1
+                                ->  Hash Join  (cost=1.14..1970.68 rows=63025 width=86) (actual time=0.016..12.106 rows=63025 loops=1)
+                                      Hash Cond: (fu.assigned_rep_id = sr.id)
+                                      Buffers: shared hit=1057 read=1 written=1
+                                      ->  Seq Scan on follow_up fu  (cost=0.00..1687.25 rows=63025 width=82) (actual time=0.005..5.711 rows=63025 loops=1)
+                                            Filter: (completed_at IS NULL)
+                                            Buffers: shared hit=1056 read=1 written=1
+                                      ->  Hash  (cost=1.06..1.06 rows=6 width=20) (actual time=0.006..0.006 rows=6 loops=1)
+                                            Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                            Buffers: shared hit=1
+                                            ->  Seq Scan on sales_rep sr  (cost=0.00..1.06 rows=6 width=20) (actual time=0.002..0.002 rows=6 loops=1)
+                                                  Buffers: shared hit=1
+                                ->  Hash  (cost=1105.00..1105.00 rows=50000 width=47) (actual time=9.370..9.370 rows=50000 loops=1)
+                                      Buckets: 65536  Batches: 1  Memory Usage: 4631kB
+                                      Buffers: shared hit=605
+                                      ->  Seq Scan on company co  (cost=0.00..1105.00 rows=50000 width=47) (actual time=0.004..3.595 rows=50000 loops=1)
+                                            Buffers: shared hit=605
+                          ->  Hash  (cost=3385.00..3385.00 rows=75000 width=20) (actual time=18.097..18.097 rows=75000 loops=1)
+                                Buckets: 131072  Batches: 1  Memory Usage: 5126kB
+                                Buffers: shared hit=2611 read=24 written=24
+                                ->  Seq Scan on opportunity o  (cost=0.00..3385.00 rows=75000 width=20) (actual time=0.006..8.113 rows=75000 loops=1)
+                                      Buffers: shared hit=2611 read=24 written=24
+Planning:
+  Buffers: shared hit=56 read=3 dirtied=1 written=3
+Planning Time: 0.702 ms
+Execution Time: 138.533 ms
+
+=== Search: exhibitor name (trigram word_similarity) ===
+Limit  (cost=1259.19..1259.20 rows=5 width=62) (actual time=4.110..4.111 rows=5 loops=1)
+  Buffers: shared hit=24 read=275 written=184
+  ->  Sort  (cost=1259.19..1259.20 rows=5 width=62) (actual time=4.109..4.109 rows=5 loops=1)
+        Sort Key: (word_similarity('aster'::text, lower(immutable_unaccent(name)))) DESC, id
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=24 read=275 written=184
+        ->  Bitmap Heap Scan on company  (cost=1237.90..1259.13 rows=5 width=62) (actual time=4.066..4.099 rows=5 loops=1)
+              Filter: ('aster'::text <% lower(immutable_unaccent(name)))
+              Heap Blocks: exact=5
+              Buffers: shared hit=21 read=275 written=184
+              ->  Bitmap Index Scan on company_name_trgm_idx  (cost=0.00..1237.90 rows=5 width=0) (actual time=4.015..4.015 rows=5 loops=1)
+                    Index Cond: (lower(immutable_unaccent(name)) %> 'aster'::text)
+                    Buffers: shared hit=16 read=275 written=184
+Planning:
+  Buffers: shared hit=27 read=3 written=3
+Planning Time: 0.633 ms
+Execution Time: 4.142 ms
+
+[scale-check] done. The scale_check schema is left in place for inspection; drop it with `DROP SCHEMA scale_check CASCADE;`, or it disappears with the rest of this project's data on the next ./reset.sh.

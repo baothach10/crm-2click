@@ -333,11 +333,24 @@ Target is 5× the shipped archive (≈ 50 k companies, 100 k contacts, 75 k oppo
 - `numeric` for money, never float
 
 **Evidence for the README**
-A `scripts/scale-check.ts` that inflates a **throwaway** database to 100 k contacts by cloning
-imported rows with new codes, then runs `EXPLAIN (ANALYZE, BUFFERS)` on the five real page queries
-and prints the timings. This is a benchmark tool, run manually, writing to a separate database name —
-it is **never** part of `dev.sh` and never touches the imported archive. Say so explicitly in the
-README, because the assignment forbids generated replacement records in the import.
+`app/scripts/scale-check.ts` clones the already-imported archive 5x (50k companies / 100k
+contacts / 75k opportunities / 200k activities / 63k follow-ups — implemented as a throwaway
+`scale_check` **schema** in the same database rather than a second database name: identical
+isolation, since it never reads or writes anything under `public`, and it disappears with a
+plain `DROP SCHEMA ... CASCADE` or the next `./reset.sh`), then runs `EXPLAIN (ANALYZE,
+BUFFERS)` on the five real page queries. Run manually via
+`docker compose --profile test run --rm test node --experimental-strip-types scripts/scale-check.ts`
+— never part of `dev.sh`, never touches the imported archive under `public`. Output saved at
+`app/scripts/scale-check-output.txt`.
+
+Measured results at 5x scale: the company-page opportunities query, the company and
+opportunity activity timelines, and trigram search all resolve via their indexes in under
+5ms. The one exception is the follow-ups screen's bucketed query, at ~138ms via a full
+sequential scan of the (63k-row) open `follow_up` set — expected, not a missed index: that
+query computes an overdue/today/next7/later bucket for *every* open row before windowing
+each bucket down to 50, so a `(due_on, id) WHERE completed_at IS NULL` index can't shortcut
+it the way it does for a single ordered slice. Still comfortably fast for a 6-person team;
+worth documenting honestly rather than silently declaring it solved by the indexes above.
 
 ---
 

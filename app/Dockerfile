@@ -20,6 +20,7 @@ RUN pnpm run build \
 
 FROM build AS test
 COPY test ./test
+COPY scripts ./scripts
 CMD ["pnpm", "run", "test"]
 
 FROM base AS runtime
