@@ -16,3 +16,12 @@ function databaseUrl(): string {
 }
 
 export const pool = new Pool({ connectionString: databaseUrl() });
+
+// pg emits 'error' on the pool when an *idle* client's connection dies underneath it (e.g.
+// the database restarts or a network blip drops the TCP connection) -- Node treats an
+// unhandled 'error' event as fatal and crashes the process. The pool has already discarded
+// that client; the next query just opens a fresh connection, so logging and moving on is
+// the correct response, not letting one dead idle connection take the whole app down.
+pool.on("error", (err) => {
+  console.error("[db] idle client error (pool continues, a new connection will be opened):", err);
+});
