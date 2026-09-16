@@ -58,5 +58,24 @@ services:
       importer:
         condition: service_completed_successfully
 
+  # Opt-in only (never runs as part of `./dev.sh`): `docker compose --profile test run --rm test`.
+  # Uses the already-imported archive and the already-running app, so run it after `./dev.sh`.
+  test:
+    build:
+      context: ./app
+      target: test
+    environment:
+      DATABASE_URL: postgres://crm:local-development-only@db:5432/crm
+      DATA_DIR: /app/data
+      TEST_BASE_URL: http://app:3000
+    volumes:
+      - ./data:/app/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    profiles: ["test"]
+
 volumes:
   postgres-data:

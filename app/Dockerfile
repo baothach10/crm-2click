@@ -18,6 +18,10 @@ RUN pnpm run build \
  && cp src/import/transform/*.sql dist/import/transform/ \
  && cp src/web/style.css dist/web/
 
+FROM build AS test
+COPY test ./test
+CMD ["pnpm", "run", "test"]
+
 FROM base AS runtime
 ENV NODE_ENV=production
 COPY package.json pnpm-lock.yaml ./
